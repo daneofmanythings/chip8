@@ -1,9 +1,9 @@
-#include <stdint.h>
 #include <stdbool.h>
+#include <stdint.h>
 
-// screen is 64x32 pixels
-#define SCREEN_WIDTH 64
-#define SCREEN_HEIGHT 32 
+#define SCREEN_WIDTH 64  // defined for semantic meaning. should never change
+#define SCREEN_HEIGHT 32 //
+
 #define STACK_CAPACITY 16
 
 typedef struct stack_t {
@@ -14,10 +14,11 @@ typedef struct stack_t {
 // TODO: needs draw flag?
 typedef struct chip8 {
   uint8_t memory[4096];
+  // screen is 64x32 pixels
   bool screen[SCREEN_WIDTH * SCREEN_HEIGHT];
   uint8_t registers[16];
   stack_t stack;
-  uint16_t index_register; // 12 bits wide
+  uint16_t index_register; // '12 bits wide'
   uint16_t program_counter;
   uint8_t delay_timer;
   uint8_t sound_timer;

@@ -2,14 +2,14 @@ FLAGS = -Wall -g
 TEST_FLAGS = 
 LIBRARIES = -lSDL2 
 TEST_LIBRARIES = $(LIBRARIES) \
-								 -lcriterion
+								 -lcriterion	\
 
 INCLUDES = -I. \
 
 BUILDS = ./build
 TARGETS = $(BUILDS)/targets
 TEST_TARGET = $(TARGETS)/test
-BINARY_NAME = dlib
+BINARY_NAME = chip8
 BUILD_TARGET = $(TARGETS)/$(BINARY_NAME)
 
 
