@@ -15,13 +15,22 @@ int main(int argc, char** argv) {
 
   renderer_t* r = renderer_create(WINDOW_WIDTH, WINDOW_HEIGHT);
 
-  bool screen[SCREEN_WIDTH * SCREEN_HEIGHT] = {0};
+  bool test_screen[SCREEN_WIDTH * SCREEN_HEIGHT] = {0};
+  bool white = 0;
+  bool black = 1;
   for (size_t i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; ++i) {
+    if (i % SCREEN_WIDTH == 0) {
+      white ^= 1;
+      black ^= 1;
+    }
     if (i % 2 == 0) {
-      screen[i] = 1;
+      test_screen[i] = white;
+    } else {
+      test_screen[i] = black;
     }
   }
-  renderer_draw_screen(r, screen);
+
+  renderer_draw_screen(r, test_screen);
 
   renderer_destroy(r);
   printf("program complete\n");
