@@ -1,5 +1,7 @@
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_pixels.h>
 #include <SDL2/SDL_rect.h>
+#include <SDL2/SDL_surface.h>
 #include <SDL2/SDL_video.h>
 #include <stdbool.h>
 #include <string.h>
@@ -79,12 +81,14 @@ void renderer_draw_screen(renderer_t* r, const bool screen[SCREEN_WIDTH * SCREEN
     uint8_t g;
     uint8_t b;
   };
+  static const struct color background = {200, 50, 50};
   static const struct color black = {0, 0, 0};
   static const struct color white = {210, 210, 210};
+  SDL_FillRect(r->surface, NULL, SDL_MapRGB(r->surface->format, background.r, background.g, background.b));
   struct color c = {0};
   for (size_t i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; ++i) {
     _pixel_update_position(r, i);
-    if (screen[i] == 1) {
+    if (screen[i] == 0) {
       c = black;
     } else {
       c = white;
@@ -92,21 +96,4 @@ void renderer_draw_screen(renderer_t* r, const bool screen[SCREEN_WIDTH * SCREEN
     SDL_FillRect(r->surface, &r->pixel, SDL_MapRGB(r->surface->format, c.r, c.g, c.b));
   }
   SDL_UpdateWindowSurface(r->window);
-  bool running = true;
-  SDL_Event event;
-
-  while (running) {
-    while (SDL_PollEvent(&event)) {
-      switch (event.type) {
-      case SDL_QUIT:
-        running = false;
-        break;
-      case SDL_KEYDOWN:
-        running = false;
-        break;
-      default:
-        break;
-      }
-    }
-  }
 }

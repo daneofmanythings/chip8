@@ -1,16 +1,15 @@
 #include <criterion/criterion.h>
 #include <criterion/parameterized.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "chip8.h"
-#include "criterion/internal/parameterized.h"
 
 struct nth_bit_params {
   uint8_t byte;
   uint8_t n;
   bool expected;
 };
-
 ParameterizedTestParameters(nth_bit, tests) {
   static struct nth_bit_params params[] = {
       {.byte = 1,   .n = 7, .expected = 1},
@@ -21,17 +20,35 @@ ParameterizedTestParameters(nth_bit, tests) {
   size_t size = sizeof(params) / sizeof(struct nth_bit_params);
   return cr_make_param_array(struct nth_bit_params, params, size);
 }
-
 ParameterizedTest(struct nth_bit_params* param, nth_bit, tests) {
   bool result = nth_bit(param->byte, param->n);
   cr_assert_eq(result, param->expected);
+}
+
+struct get_opcode_test_case {
+  uint8_t opcode[2];
+  opcode_t expected;
+};
+ParameterizedTestParameters(opcode, get) {
+  static struct get_opcode_test_case tcs[] = {
+      {{0xFF, 0x11}, 0xFF11},
+      {{0x12, 0x34}, 0x1234},
+  };
+  size_t size = sizeof(tcs) / sizeof(struct get_opcode_test_case);
+  return cr_make_param_array(struct get_opcode_test_case, tcs, size);
+}
+ParameterizedTest(struct get_opcode_test_case* tc, opcode, get) {
+  chip8_t chip8 = {0};
+  memcpy(&chip8.memory[chip8.program_counter], tc->opcode, sizeof(tc->opcode));
+  opcode_t result = get_opcode(&chip8);
+  cr_assert(result == tc->expected, "input=[%d, %d], expected=%d, result=%d", tc->opcode[0], tc->opcode[1],
+            tc->expected, result);
 }
 
 struct decode_opcode_params {
   opcode_t input;
   opcode_f expected;
 };
-
 ParameterizedTestParameters(decode_opcode, tests) {
   static struct decode_opcode_params params[] = {
       {.input = 0x0111, .expected = call_machine_code_routine_at_NNN                     },
@@ -74,11 +91,7 @@ ParameterizedTestParameters(decode_opcode, tests) {
   size_t size = sizeof(params) / sizeof(struct decode_opcode_params);
   return cr_make_param_array(struct decode_opcode_params, params, size);
 }
-
 ParameterizedTest(struct decode_opcode_params* param, decode_opcode, tests) {
   opcode_f result = decode_opcode(param->input);
-  if (result != param->expected) {
-    printf("failed on input: 0x%04x\n", param->input);
-  }
-  cr_assert_eq(result, param->expected);
+  cr_assert(result == param->expected, "input=0x%04x\n", param->input);
 }
