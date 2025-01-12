@@ -5,8 +5,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#define SCREEN_WIDTH 64  // defined for semantic meaning. will never change.
-#define SCREEN_HEIGHT 32 // (also defined in chip8.h)
+#include "../defines.h"
 
 void temp_run_window(void);
 
@@ -20,7 +19,7 @@ typedef struct renderer {
 
 renderer_t* renderer_create(const size_t window_width, const size_t window_height);
 void renderer_destroy(renderer_t* renderer);
-void renderer_draw_screen(renderer_t* renderer, const bool screen[SCREEN_WIDTH * SCREEN_HEIGHT]);
+void renderer_draw_screen(renderer_t* renderer, const bool screen[SCREEN_SIZE]);
 
 SDL_Rect _create_pixel_offsets_only(size_t window_width, size_t window_height);
 

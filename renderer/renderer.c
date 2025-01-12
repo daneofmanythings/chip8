@@ -3,6 +3,7 @@
 #include <SDL2/SDL_rect.h>
 #include <SDL2/SDL_surface.h>
 #include <SDL2/SDL_video.h>
+#include <pthread.h>
 #include <stdbool.h>
 #include <string.h>
 
@@ -15,10 +16,15 @@ renderer_t* renderer_create(const size_t window_width, const size_t window_heigh
     exit(1);
   }
   renderer_t* renderer = calloc(sizeof(renderer_t), 1);
+  if (renderer == NULL) {
+    perror("renderer calloc");
+    return NULL;
+  }
 
   SDL_Init(SDL_INIT_EVERYTHING);
   SDL_Window* window = SDL_CreateWindow("chip8 emulator", 100, 100, window_width, window_height, SDL_WINDOW_SHOWN);
   if (window == NULL) {
+    free(renderer);
     fprintf(stderr, "ERROR: SDL failed to create window: %s\n", SDL_GetError());
     exit(1);
   }
@@ -27,6 +33,8 @@ renderer_t* renderer_create(const size_t window_width, const size_t window_heigh
 
   SDL_Surface* window_surface = SDL_GetWindowSurface(window);
   if (window_surface == NULL) {
+    SDL_DestroyWindow(window);
+    free(renderer);
     fprintf(stderr, "ERROR: SDL failed to get window surface: %s\n", SDL_GetError());
     exit(1);
   }
@@ -75,7 +83,7 @@ void renderer_destroy(renderer_t* renderer) {
   SDL_Quit();
 }
 
-void renderer_draw_screen(renderer_t* r, const bool screen[SCREEN_WIDTH * SCREEN_HEIGHT]) {
+void renderer_draw_screen(renderer_t* r, const bool screen[SCREEN_SIZE]) {
   struct color {
     uint8_t r;
     uint8_t g;
@@ -86,7 +94,7 @@ void renderer_draw_screen(renderer_t* r, const bool screen[SCREEN_WIDTH * SCREEN
   static const struct color white = {210, 210, 210};
   SDL_FillRect(r->surface, NULL, SDL_MapRGB(r->surface->format, background.r, background.g, background.b));
   struct color c = {0};
-  for (size_t i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; ++i) {
+  for (size_t i = 0; i < SCREEN_SIZE; ++i) {
     _pixel_update_position(r, i);
     if (screen[i] == 0) {
       c = black;

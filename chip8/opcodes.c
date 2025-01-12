@@ -1,16 +1,4 @@
-#include <errno.h>
-#include <signal.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/time.h>
-#include <unistd.h>
-
 #include "chip8.h"
-
-#define PROGRAM_START 512
-#define MAX_PROGRAM_LEN (4096 - (PROGRAM_START))
-#define INTERVAL 500 // milliseconds
 
 #define X ((opcode & 0x0F00) >> 8)
 #define Y ((opcode & 0x00F0) >> 4)
@@ -21,87 +9,6 @@
 #define NNN (opcode & 0x0FFF)
 #define NN (opcode & 0x00FF)
 #define N (opcode & 0x000F)
-
-chip8_t* chip8_create() {
-  chip8_t* chip8 = calloc(sizeof(chip8_t), 1);
-  if (chip8 == NULL) {
-    // TODO:
-  }
-
-  return chip8;
-}
-
-void chip8_initialize(chip8_t* chip8) {
-  // load font.
-
-  // set program counter
-  chip8->program_counter = PROGRAM_START;
-}
-
-void chip8_load_program(chip8_t* chip8, const char* filepath) {
-  FILE* f = fopen(filepath, "r");
-  fread(&chip8->memory[PROGRAM_START], MAX_PROGRAM_LEN, 1, f);
-}
-bool chip8_emulate_cycle(chip8_t* chip8) {
-  // fetch opcode
-  opcode_t opcode = get_opcode(chip8);
-
-  // decode opcode
-  opcode_f opcode_function = decode_opcode(opcode);
-  // run opcode
-  int instructions_to_advance = opcode_function(chip8, opcode);
-  chip8->program_counter += instructions_to_advance * sizeof(opcode_t);
-
-  // update the timers
-  if (chip8->sound_timer.value > 0) {
-    // make beep
-  }
-  if (chip8->redraw == true) {
-    chip8->redraw = false;
-    return true;
-  }
-  return false;
-}
-
-void chip8_handler(int signum);
-void* chip8_run_thread(void* args) {
-  fprintf(stdout, "thread entered\n");
-  struct run_thread_args* rta = (struct run_thread_args*)args;
-  chip8_t* chip8 = rta->chip8;
-  renderer_t* r = rta->r;
-
-  struct sigaction sa;
-  sa.sa_handler = chip8_handler;
-  sa.sa_flags = SA_NODEFER;
-
-  if (sigaction(SIGALRM, &sa, NULL) == -1) {
-    fprintf(stderr, "could not set sigaction. %d\n", errno);
-    exit(1);
-  };
-
-  struct timeval it_value = {
-      .tv_sec = INTERVAL / 1000,
-      .tv_usec = (INTERVAL * 1000) % 1000000,
-  };
-  struct timeval it_interval = it_value;
-  struct itimerval it_data = {
-      it_interval,
-      it_value,
-  };
-
-  if (setitimer(ITIMER_REAL, &it_data, NULL) == -1) {
-    fprintf(stderr, "could not set itimer: %d\n", errno);
-    exit(1);
-  };
-
-  while (true) {
-    fprintf(stdout, "run loop... \n");
-    pause();
-    if (chip8_emulate_cycle(chip8)) {
-      renderer_draw_screen(r, chip8->screen);
-    }
-  }
-}
 
 opcode_t get_opcode(const chip8_t* chip8) {
   return chip8->memory[chip8->program_counter] << 8 | chip8->memory[chip8->program_counter + 1];
@@ -210,7 +117,7 @@ int call_machine_code_routine_at_NNN(chip8_t* chip8, const opcode_t opcode) {
 
 //*00E0 	Display 	disp_clear() 	Clears the screen.[24]*/
 int clear_display(chip8_t* chip8, opcode_t opcode) {
-  for (size_t i = 0; i < SCREEN_WIDTH * SCREEN_HEIGHT; i++) {
+  for (size_t i = 0; i < SCREEN_SIZE; i++) {
     chip8->screen[i] = 0;
   }
   return 1;
@@ -399,11 +306,13 @@ int display_draw_sprite_at_VX_VY(chip8_t* chip8, const opcode_t opcode) {
     row_data = chip8->memory[I + row];
     row_start_loc = x + ((y + row) * SCREEN_WIDTH);
     for (size_t bit_num = 0; bit_num < 8; bit_num++) { // iterating through bits of the sprite
+      if (x + bit_num < 0) {
+        continue; // checking for let clipping
+      }
       draw_loc = row_start_loc + bit_num;
       // TODO: compare sprite bit to screen bit. if both 1, set flag VF to 1
-      // TODO: check left edge clipping
 
-      if (draw_loc < 0 || draw_loc >= (SCREEN_WIDTH * SCREEN_HEIGHT)) {
+      if (draw_loc < 0 || draw_loc >= (SCREEN_SIZE)) {
         continue; // makes sure is in range
       }
       if (row_start_loc % SCREEN_WIDTH > draw_loc % SCREEN_WIDTH) {
@@ -412,7 +321,7 @@ int display_draw_sprite_at_VX_VY(chip8_t* chip8, const opcode_t opcode) {
       chip8->screen[draw_loc] ^= nth_bit(row_data, bit_num);
     }
   }
-  chip8->redraw = true;
+  chip8->should_redraw = true;
   return 1;
 }
 
@@ -435,7 +344,7 @@ int keyop_skip_if_key_not_equals_VX(chip8_t* chip8, const opcode_t opcode) {
 /*FX07 	Timer 	Vx = get_delay() 	Sets VX to the value of the delay
  * timer.[24]*/
 int timer_set_VX_to_delay_timer(chip8_t* chip8, const opcode_t opcode) {
-  Vx = chip8->delay_timer.value;
+  Vx = chip8->delay_timer;
   return 1;
 }
 
@@ -449,13 +358,13 @@ int keyop_await_key_press_into_VX(chip8_t* chip8, const opcode_t opcode) {
 
 /*FX15 	Timer 	delay_timer(Vx) 	Sets the delay timer to VX.[24]*/
 int timer_set_delay_timer_to_VX(chip8_t* chip8, const opcode_t opcode) {
-  chip8->delay_timer.value = Vx;
+  chip8->delay_timer = Vx;
   return 1;
 }
 
 /*FX18 	Sound 	sound_timer(Vx) 	Sets the sound timer to VX.[24]*/
 int sound_set_sound_timer_to_VX(chip8_t* chip8, const opcode_t opcode) {
-  chip8->sound_timer.value = Vx;
+  chip8->sound_timer = Vx;
   return 1;
 }
 
@@ -531,5 +440,3 @@ void chip8_stack_push(chip8_t* chip8, uint16_t value) {
   chip8->stack.data[chip8->stack.pointer] = value;
   chip8->stack.pointer += 1;
 }
-
-void chip8_handler(int signum) { return; }

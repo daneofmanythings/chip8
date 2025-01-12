@@ -1,60 +1,51 @@
 #include <pthread.h>
+#include <signal.h>
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "../defines.h"
 #include "../renderer/renderer.h"
-
-#define SCREEN_WIDTH 64  // defined for semantic meaning. should never change
-#define SCREEN_HEIGHT 32 //
 
 #define STACK_CAPACITY 16
 
-typedef struct stack_t {
+typedef struct chip_stack_t {
   uint16_t pointer;
   uint16_t data[STACK_CAPACITY];
 } chip8_stack_t;
 
-struct timer {
-  pthread_mutex_t mutex;
-  uint8_t value;
-};
+typedef void (*render_f)(bool[SCREEN_SIZE]);
 
-typedef void (*render_f)(bool[SCREEN_WIDTH * SCREEN_HEIGHT]);
-
-// TODO: needs draw flag?
 typedef struct chip8 {
+  uint32_t Hz;
   uint8_t memory[4096];
-  // screen is 64x32 pixels
-  bool screen[SCREEN_WIDTH * SCREEN_HEIGHT];
+  bool screen[SCREEN_SIZE];
   uint8_t registers[16];
   chip8_stack_t stack;
-  uint16_t index_register; // '12 bits wide'
+  uint16_t index_register;
   uint16_t program_counter;
-  struct timer delay_timer;
-  struct timer sound_timer;
+  uint8_t delay_timer;
+  uint8_t sound_timer;
   uint8_t keypad[16];
-  bool redraw;
+  bool should_redraw;
 } chip8_t;
 
 typedef uint16_t opcode_t;
 typedef int (*opcode_f)(chip8_t*, opcode_t);
 
-bool nth_bit(uint8_t byte, uint8_t bit_to_check);
-
-uint16_t chip8_stack_pop(chip8_t* chip8);
-void chip8_stack_push(chip8_t* chip8, uint16_t value);
-
 struct run_thread_args {
   chip8_t* chip8;
-  renderer_t* r;
 };
 void* chip8_run_thread(void* args);
-chip8_t* chip8_create();
-void chip8_initialize(chip8_t* chip8);
+chip8_t* chip8_create(uint32_t Hz);
+void chip8_destroy(chip8_t* chip8);
 void chip8_load_program(chip8_t* chip8, const char* filepath);
 bool chip8_emulate_cycle(chip8_t* chip8);
 opcode_t get_opcode(const chip8_t* chip8);
 opcode_f decode_opcode(opcode_t opcode);
+// helpers
+bool nth_bit(uint8_t byte, uint8_t bit_to_check);
+uint16_t chip8_stack_pop(chip8_t* chip8);
+void chip8_stack_push(chip8_t* chip8, uint16_t value);
 
 int call_machine_code_routine_at_NNN(chip8_t* chip8, const opcode_t opcode);
 int clear_display(chip8_t* chip8, opcode_t opcode);
