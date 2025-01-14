@@ -1,56 +1,36 @@
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_pixels.h>
-#include <SDL2/SDL_rect.h>
-#include <SDL2/SDL_surface.h>
-#include <SDL2/SDL_video.h>
+#include <SDL3/SDL_pixels.h>
+#include <SDL3/SDL_render.h>
 #include <pthread.h>
 #include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "renderer.h"
 
-renderer_t* renderer_create(const size_t window_width, const size_t window_height) {
-  if (window_width < SCREEN_WIDTH || window_height < SCREEN_HEIGHT) {
-    fprintf(stderr, "ERROR: window width or height are too small. minimum is 64x32. received: width=%zu, height=%zu\n",
-            window_width, window_height);
-    exit(1);
-  }
-  renderer_t* renderer = calloc(sizeof(renderer_t), 1);
-  if (renderer == NULL) {
-    perror("renderer calloc");
-    return NULL;
+bool render_state_init(render_state_t* rs, const size_t width, const size_t height, const SDL_WindowFlags flags) {
+  if (width < SCREEN_WIDTH || height < SCREEN_HEIGHT) {
+    SDL_Log("ERROR: window width or height are too small. minimum is 64x32. received: width=%zu, height=%zu\n", width,
+            height);
+    return false;
   }
 
-  SDL_Init(SDL_INIT_EVERYTHING);
-  SDL_Window* window = SDL_CreateWindow("chip8 emulator", 100, 100, window_width, window_height, SDL_WINDOW_SHOWN);
-  if (window == NULL) {
-    free(renderer);
-    fprintf(stderr, "ERROR: SDL failed to create window: %s\n", SDL_GetError());
-    exit(1);
+  SDL_Init(SDL_INIT_VIDEO);
+
+  bool is_successful = SDL_CreateWindowAndRenderer("chip8 emulator", width, height, flags, &rs->window, &rs->renderer);
+  if (is_successful == false) {
+    return false;
   }
 
-  renderer->window = window;
+  rs->pixel = _create_pixel_offsets_only(width, height);
 
-  SDL_Surface* window_surface = SDL_GetWindowSurface(window);
-  if (window_surface == NULL) {
-    SDL_DestroyWindow(window);
-    free(renderer);
-    fprintf(stderr, "ERROR: SDL failed to get window surface: %s\n", SDL_GetError());
-    exit(1);
-  }
+  rs->screen_start_x = (width - rs->pixel.w * SCREEN_WIDTH) / 2;
+  rs->screen_start_y = (height - rs->pixel.h * SCREEN_HEIGHT) / 2;
 
-  renderer->surface = window_surface;
-  renderer->pixel = _create_pixel_offsets_only(window_width, window_height);
-
-  size_t screen_start_x = (window_width - renderer->pixel.w * SCREEN_WIDTH) / 2;
-  memcpy((void*)&renderer->screen_start_x, &screen_start_x, sizeof(typeof(screen_start_x)));
-  size_t screen_start_y = (window_height - renderer->pixel.h * SCREEN_HEIGHT) / 2;
-  memcpy((void*)&renderer->screen_start_y, &screen_start_y, sizeof(typeof(screen_start_y)));
-
-  return renderer;
+  return true;
 }
 
-SDL_Rect _create_pixel_offsets_only(size_t window_width, size_t window_height) {
+SDL_FRect _create_pixel_offsets_only(const size_t window_width, const size_t window_height) {
   size_t side_len;
   size_t x_len = window_width / SCREEN_WIDTH;
   size_t y_len = window_height / SCREEN_HEIGHT;
@@ -59,7 +39,7 @@ SDL_Rect _create_pixel_offsets_only(size_t window_width, size_t window_height) {
   } else {
     side_len = y_len;
   }
-  return (SDL_Rect){
+  return (SDL_FRect){
       .w = side_len,
       .h = side_len,
       .x = 0,
@@ -67,23 +47,22 @@ SDL_Rect _create_pixel_offsets_only(size_t window_width, size_t window_height) {
   };
 }
 
-void _pixel_update_position(renderer_t* renderer, size_t i) {
-  renderer->pixel.x = (i % 64) * renderer->pixel.w + renderer->screen_start_x;
-  renderer->pixel.y = (i / 64) * renderer->pixel.h + renderer->screen_start_y;
+void _pixel_update_position(render_state_t* rs, size_t i) {
+  rs->pixel.x = (i % 64) * rs->pixel.w + rs->screen_start_x;
+  rs->pixel.y = (i / 64) * rs->pixel.h + rs->screen_start_y;
 }
 
-void renderer_destroy(renderer_t* renderer) {
-  SDL_DestroyWindow(renderer->window);
-  renderer->window = NULL;
-  renderer->surface = NULL;
+void renderer_destroy(render_state_t* rs) {
+  SDL_DestroyRenderer(rs->renderer);
+  rs->renderer = NULL;
+  SDL_DestroyWindow(rs->window);
+  rs->window = NULL;
 
-  free(renderer);
-  renderer = NULL;
-
-  SDL_Quit();
+  free(rs);
+  rs = NULL;
 }
 
-void renderer_draw_screen(renderer_t* r, const bool screen[SCREEN_SIZE]) {
+void draw_screen(render_state_t* rs, const bool screen[SCREEN_SIZE]) {
   struct color {
     uint8_t r;
     uint8_t g;
@@ -92,16 +71,18 @@ void renderer_draw_screen(renderer_t* r, const bool screen[SCREEN_SIZE]) {
   static const struct color background = {200, 50, 50};
   static const struct color black = {0, 0, 0};
   static const struct color white = {210, 210, 210};
-  SDL_FillRect(r->surface, NULL, SDL_MapRGB(r->surface->format, background.r, background.g, background.b));
+  SDL_SetRenderDrawColor(rs->renderer, background.r, background.g, background.b, SDL_ALPHA_OPAQUE);
+  SDL_RenderFillRect(rs->renderer, NULL);
   struct color c = {0};
   for (size_t i = 0; i < SCREEN_SIZE; ++i) {
-    _pixel_update_position(r, i);
+    _pixel_update_position(rs, i);
     if (screen[i] == 0) {
       c = black;
     } else {
       c = white;
     }
-    SDL_FillRect(r->surface, &r->pixel, SDL_MapRGB(r->surface->format, c.r, c.g, c.b));
+    SDL_SetRenderDrawColor(rs->renderer, c.r, c.g, c.b, SDL_ALPHA_OPAQUE);
+    SDL_RenderFillRect(rs->renderer, &rs->pixel);
   }
-  SDL_UpdateWindowSurface(r->window);
+  SDL_RenderPresent(rs->renderer);
 }

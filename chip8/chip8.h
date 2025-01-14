@@ -18,6 +18,7 @@ typedef void (*render_f)(bool[SCREEN_SIZE]);
 typedef struct chip8 {
   uint32_t Hz;
   uint8_t memory[4096];
+  pthread_mutex_t screen_mutex;
   bool screen[SCREEN_SIZE];
   uint8_t registers[16];
   chip8_stack_t stack;
@@ -26,7 +27,6 @@ typedef struct chip8 {
   uint8_t delay_timer;
   uint8_t sound_timer;
   uint8_t keypad[16];
-  bool should_redraw;
 } chip8_t;
 
 typedef uint16_t opcode_t;
@@ -36,7 +36,7 @@ struct run_thread_args {
   chip8_t* chip8;
 };
 void* chip8_run_thread(void* args);
-chip8_t* chip8_create(uint32_t Hz);
+bool chip8_init(chip8_t* chip8, uint32_t Hz);
 void chip8_destroy(chip8_t* chip8);
 void chip8_load_program(chip8_t* chip8, const char* filepath);
 bool chip8_emulate_cycle(chip8_t* chip8);

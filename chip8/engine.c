@@ -1,6 +1,5 @@
 #include <bits/types/siginfo_t.h>
 #include <pthread.h>
-#include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,10 +11,15 @@
 #define PROGRAM_START 512
 #define MAX_PROGRAM_LEN (4096 - (PROGRAM_START))
 
-chip8_t* chip8_create(uint32_t Hz) {
-  chip8_t* chip8 = calloc(sizeof(chip8_t), 1);
+bool chip8_init(chip8_t* chip8, uint32_t Hz) {
   if (chip8 == NULL) {
-    perror("chip8 calloc");
+    return false;
+  }
+
+  if (pthread_mutex_init(&chip8->screen_mutex, NULL)) {
+    perror("chip8 screen_mutex_init");
+    free(chip8);
+    chip8 = NULL;
     return NULL;
   }
 
@@ -34,6 +38,8 @@ void chip8_destroy(chip8_t* chip8) {
     return;
   }
 
+  pthread_mutex_destroy(&chip8->screen_mutex);
+
   free(chip8);
   chip8 = NULL;
 }
@@ -51,10 +57,6 @@ void* engine_clock_thread(void* args);
 void* chip8_run_thread(void* args) {
   struct run_thread_args* rta = (struct run_thread_args*)args;
   chip8_t* chip8 = rta->chip8;
-  pid_t pid = getpid();
-  union sigval sv_draw = {
-      .sival_int = SIGDRAW,
-  };
 
   pthread_mutex_t tick;
   pthread_mutex_init(&tick, NULL);
@@ -72,13 +74,9 @@ void* chip8_run_thread(void* args) {
 
   while (true) {
     // fprintf(stdout, "run loop...\n");
-    // usleep(1000000 / chip8->Hz); // this will become a clock thread eventually
     pthread_mutex_lock(&tick);
     pthread_cond_wait(&tock, &tick);
-    if (chip8_emulate_cycle(chip8)) {
-      // printf("sending draw signal\n");
-      sigqueue(pid, SIGDRAW, sv_draw);
-    }
+    chip8_emulate_cycle(chip8);
     pthread_mutex_unlock(&tick);
   }
 }
@@ -113,10 +111,5 @@ bool chip8_emulate_cycle(chip8_t* chip8) {
     chip8->delay_timer -= 1;
   }
 
-  // redraw if screen buffer was written to
-  if (chip8->should_redraw == true) {
-    chip8->should_redraw = false;
-    return true;
-  }
-  return false;
+  return true;
 }

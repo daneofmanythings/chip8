@@ -1,6 +1,6 @@
 FLAGS = -Wall -g
 TEST_FLAGS = 
-LIBRARIES = -lSDL2 
+LIBRARIES = -lSDL3 
 TEST_LIBRARIES = $(LIBRARIES) \
 								 -lcriterion	\
 

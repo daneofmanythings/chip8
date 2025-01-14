@@ -1,4 +1,7 @@
 #include "chip8.h"
+#include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #define X ((opcode & 0x0F00) >> 8)
 #define Y ((opcode & 0x00F0) >> 4)
@@ -302,6 +305,7 @@ int display_draw_sprite_at_VX_VY(chip8_t* chip8, const opcode_t opcode) {
   uint8_t row_data;
   uint16_t row_start_loc;
   size_t draw_loc = 0;
+  pthread_mutex_lock(&chip8->screen_mutex);
   for (size_t row = 0; row < N; row++) { // iterating down through the rows
     row_data = chip8->memory[I + row];
     row_start_loc = x + ((y + row) * SCREEN_WIDTH);
@@ -321,7 +325,7 @@ int display_draw_sprite_at_VX_VY(chip8_t* chip8, const opcode_t opcode) {
       chip8->screen[draw_loc] ^= nth_bit(row_data, bit_num);
     }
   }
-  chip8->should_redraw = true;
+  pthread_mutex_unlock(&chip8->screen_mutex);
   return 1;
 }
 
