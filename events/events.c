@@ -8,7 +8,7 @@ SDL_AppResult event_handle_keypress(SDL_KeyboardEvent ev, uint8_t* keypress) {
     return SDL_APP_SUCCESS;
   default:
     *keypress = filter_into(ev.scancode, DEFAULT_LAYOUT); // layout should be configurable
-    printf("scancode=%d, keypress=%d\n", ev.scancode, *keypress);
+    // printf("scancode=%d, keypress=%d\n", ev.scancode, *keypress);
     return SDL_APP_CONTINUE;
   }
 }

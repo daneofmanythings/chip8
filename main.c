@@ -22,7 +22,7 @@
 #define TEST_OPCODE_PROGRAM "./roms/test_opcode.ch8"
 #define PONG "./roms/pong.ch8"
 
-#define RUN_PROGRAM TEST_OPCODE_PROGRAM
+#define RUN_PROGRAM PONG
 
 typedef struct {
   chip8_t* chip8;
@@ -39,7 +39,7 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char** argv) {
   }
   *appstate = as;
 
-  uint32_t Hz = 50; // TODO: should get as input
+  uint32_t Hz = 700; // TODO: should get as input
   as->render_state = SDL_calloc(1, sizeof(render_state_t));
   if (as->render_state == NULL) {
     SDL_Log("could not allocate render_state\n");

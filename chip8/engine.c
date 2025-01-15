@@ -99,6 +99,12 @@ void* chip8_run_thread(void* args) {
     pthread_cond_wait(&tock, &tick);
     chip8_emulate_cycle(chip8);
     pthread_mutex_unlock(&tick);
+    if (chip8->delay_timer.value > 0) {
+      chip8->delay_timer.value -= 1;
+    }
+    if (chip8->sound_timer.value > 0) {
+      chip8->sound_timer.value -= 1;
+    }
   }
 }
 void* engine_clock_thread(void* args) {

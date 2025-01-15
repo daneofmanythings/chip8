@@ -394,14 +394,14 @@ int timer_set_delay_timer_to_VX(chip8_t* chip8, opcode oc) {
   chip8->delay_timer.value = Vx;
   pthread_mutex_unlock(&chip8->delay_timer.mut);
 
-  pthread_t tid;
-  struct timer_thread_args args = {
-      &chip8->delay_timer,
-      chip8->Hz,
-  };
-  if (!pthread_create(&tid, NULL, decrement_timer_thread, (void*)&args)) {
-    //
-  }
+  // pthread_t tid;
+  // struct timer_thread_args args = {
+  //     &chip8->delay_timer,
+  //     chip8->Hz,
+  // };
+  // if (!pthread_create(&tid, NULL, decrement_timer_thread, (void*)&args)) {
+  //   //
+  // }
   return 1;
 }
 
@@ -411,14 +411,14 @@ int sound_set_sound_timer_to_VX(chip8_t* chip8, opcode oc) {
   chip8->sound_timer.value = Vx;
   pthread_mutex_unlock(&chip8->sound_timer.mut);
 
-  pthread_t tid;
-  struct timer_thread_args args = {
-      &chip8->sound_timer,
-      chip8->Hz,
-  };
-  if (!pthread_create(&tid, NULL, decrement_timer_thread, (void*)&args)) {
-    //
-  }
+  // pthread_t tid;
+  // struct timer_thread_args args = {
+  //     &chip8->sound_timer,
+  //     chip8->Hz,
+  // };
+  // if (!pthread_create(&tid, NULL, decrement_timer_thread, (void*)&args)) {
+  //   //
+  // }
   return 1;
 }
 
