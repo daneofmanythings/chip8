@@ -22,6 +22,8 @@
 #define TEST_OPCODE_PROGRAM "./roms/test_opcode.ch8"
 #define PONG "./roms/pong.ch8"
 
+#define RUN_PROGRAM TEST_OPCODE_PROGRAM
+
 typedef struct {
   chip8_t* chip8;
   render_state_t* render_state;
@@ -58,7 +60,7 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char** argv) {
     return SDL_APP_FAILURE;
   }
 
-  chip8_load_program(as->chip8, BC_TEST_PROGRAM);
+  chip8_load_program(as->chip8, RUN_PROGRAM);
 
   pthread_t engine_thread;
   struct run_thread_args engine_args = {

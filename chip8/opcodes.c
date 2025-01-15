@@ -129,7 +129,7 @@ int clear_display(chip8_t* chip8, opcode oc) {
 /*00EE 	Flow 	return{} 	Returns from a subroutine.[24]*/
 int flow_return(chip8_t* chip8, opcode oc) {
   chip8->program_counter = chip8_stack_pop(chip8);
-  return 0;
+  return 1;
 }
 
 /*1NNN 	Flow 	goto NNN{} 	Jumps to address NNN.[24]*/
@@ -485,7 +485,7 @@ uint16_t chip8_stack_pop(chip8_t* chip8) {
     exit(1);
   }
   chip8->stack.pointer -= 1;
-  return chip8->stack.data[chip8->stack.pointer + 1];
+  return chip8->stack.data[chip8->stack.pointer];
 }
 void chip8_stack_push(chip8_t* chip8, uint16_t value) {
   if (chip8->stack.pointer == STACK_CAPACITY - 1) {
