@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "renderer.h"
+#include "render_state.h"
 
 bool render_state_init(render_state_t* rs, const size_t width, const size_t height, const SDL_WindowFlags flags) {
   if (width < SCREEN_WIDTH || height < SCREEN_HEIGHT) {

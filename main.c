@@ -1,3 +1,4 @@
+#include <SDL3/SDL_init.h>
 #define SDL_MAIN_USE_CALLBACKS 1
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
@@ -13,14 +14,17 @@
 
 #include "chip8/chip8.h"
 #include "defines.h"
-#include "renderer/renderer.h"
+#include "events/events.h"
+#include "render/render_state.h"
 
 #define IBM_LOGO_PROGRAM "./roms/ibm_logo.ch8"
+#define BC_TEST_PROGRAM "./roms/BC_test.ch8"
+#define TEST_OPCODE_PROGRAM "./roms/test_opcode.ch8"
+#define PONG "./roms/pong.ch8"
 
 typedef struct {
-  chip8_t* ch8;
-  render_state_t* rs;
-  bool* test_screen;
+  chip8_t* chip8;
+  render_state_t* render_state;
 } appstate_t;
 
 void loading_screen_init(bool screen[SCREEN_SIZE]);
@@ -31,50 +35,49 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char** argv) {
   if (as == NULL) {
     SDL_Log("could not calloc appstate_t\n");
   }
-
   *appstate = as;
 
-  uint32_t Hz = 500; // TODO: should get as input
-  as->rs = SDL_calloc(1, sizeof(render_state_t));
-  if (as->rs == NULL) {
+  uint32_t Hz = 50; // TODO: should get as input
+  as->render_state = SDL_calloc(1, sizeof(render_state_t));
+  if (as->render_state == NULL) {
     SDL_Log("could not allocate render_state\n");
     return SDL_APP_FAILURE;
   }
   SDL_WindowFlags window_flags = 0;
-  if (!render_state_init(as->rs, WINDOW_WIDTH, WINDOW_HEIGHT, window_flags)) {
+  if (!render_state_init(as->render_state, WINDOW_WIDTH, WINDOW_HEIGHT, window_flags)) {
     return SDL_APP_FAILURE;
   }
 
   bool loading_screen[SCREEN_SIZE] = {0};
   loading_screen_init(loading_screen);
-  draw_screen(as->rs, loading_screen);
+  draw_screen(as->render_state, loading_screen);
 
-  as->ch8 = SDL_calloc(1, sizeof(chip8_t));
-  if (!chip8_init(as->ch8, Hz)) {
+  as->chip8 = SDL_calloc(1, sizeof(chip8_t));
+  if (!chip8_init(as->chip8, Hz)) {
     SDL_Log("could not init chip8");
     return SDL_APP_FAILURE;
   }
 
-  chip8_load_program(as->ch8, IBM_LOGO_PROGRAM);
+  chip8_load_program(as->chip8, BC_TEST_PROGRAM);
 
   pthread_t engine_thread;
   struct run_thread_args engine_args = {
-      as->ch8,
+      as->chip8,
   };
   if (pthread_create(&engine_thread, NULL, chip8_run_thread, &engine_args) == -1) {
     fprintf(stderr, "couldn't create 'chip8_run_thread' thread\n");
     return SDL_APP_FAILURE;
   }
 
-  as->test_screen = create_test_screen();
-
   return SDL_APP_CONTINUE;
 }
 
 SDL_AppResult SDL_AppIterate(void* appstate) {
   appstate_t* as = (appstate_t*)appstate;
-  chip8_t* ch8 = as->ch8;
-  render_state_t* rs = as->rs;
+  chip8_t* ch8 = as->chip8;
+  render_state_t* rs = as->render_state;
+
+  // TODO: play sound if sound timer is non-zero
 
   pthread_mutex_lock(&ch8->screen_mutex);
   draw_screen(rs, ch8->screen);
@@ -85,26 +88,39 @@ SDL_AppResult SDL_AppIterate(void* appstate) {
 }
 
 SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* event) {
-  printf("event\n");
+  appstate_t* as = (appstate_t*)appstate;
+  keypress_t* keypress = &as->chip8->keypress;
+  SDL_AppResult result;
   switch (event->type) {
   case SDL_EVENT_QUIT:
     return SDL_APP_SUCCESS;
   case SDL_EVENT_KEY_DOWN:
-    return SDL_APP_SUCCESS;
-  default:
+    pthread_mutex_lock(&keypress->mut);
+    result = event_handle_keypress(event->key, &keypress->value);
+    pthread_mutex_unlock(&keypress->mut);
+    pthread_cond_broadcast(&keypress->cond);
     break;
+  case SDL_EVENT_KEY_UP:
+    pthread_mutex_lock(&keypress->mut);
+    keypress->value = 0xFF;
+    pthread_mutex_unlock(&keypress->mut);
+    result = SDL_APP_CONTINUE;
+    break;
+  default:
+    result = SDL_APP_CONTINUE;
   }
-  return SDL_APP_CONTINUE;
+  return result;
 }
 void SDL_AppQuit(void* appstate, SDL_AppResult result) {
+  // TODO: there are leaks that need to be cleaned up here.
   appstate_t* as = (appstate_t*)appstate;
-  chip8_t* ch8 = as->ch8;
-  render_state_t* rs = as->rs;
+  chip8_t* ch8 = as->chip8;
+  render_state_t* rs = as->render_state;
   if (ch8 != NULL) {
     chip8_destroy(ch8);
   }
   if (rs != NULL) {
-    // render_state_destroy(rs);
+    // render_state_destroy(rs); // WHY IS THIS NOT FOUND
   }
 }
 
@@ -125,8 +141,7 @@ bool* create_test_screen() {
   }
   return test_screen;
 }
-// 13 down, 13 in.
-//
+
 typedef struct {
   char c;
   uint8_t rows[5];

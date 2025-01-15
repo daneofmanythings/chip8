@@ -3,7 +3,7 @@
 #include <criterion/new/assert.h>
 #include <criterion/parameterized.h>
 
-#include "renderer.h"
+#include "render_state.h"
 
 struct renderer_create_test_cases {
   size_t input_width;

@@ -8,16 +8,37 @@
 
 #include "chip8.h"
 
-#define PROGRAM_START 512
-#define MAX_PROGRAM_LEN (4096 - (PROGRAM_START))
-
 bool chip8_init(chip8_t* chip8, uint32_t Hz) {
   if (chip8 == NULL) {
     return false;
   }
 
   if (pthread_mutex_init(&chip8->screen_mutex, NULL)) {
-    perror("chip8 screen_mutex_init");
+    perror("chip8 screen pthread_mutex_init");
+    free(chip8);
+    chip8 = NULL;
+    return NULL;
+  }
+  if (pthread_mutex_init(&chip8->delay_timer.mut, NULL)) {
+    perror("chip8 delay_timer pthread_mutex_init");
+    free(chip8);
+    chip8 = NULL;
+    return NULL;
+  }
+  if (pthread_mutex_init(&chip8->sound_timer.mut, NULL)) {
+    perror("chip8 screen_timer pthread_mutex_init");
+    free(chip8);
+    chip8 = NULL;
+    return NULL;
+  }
+  if (pthread_mutex_init(&chip8->keypress.mut, NULL)) {
+    perror("chip8 keypress pthread_mutex_init");
+    free(chip8);
+    chip8 = NULL;
+    return NULL;
+  }
+  if (pthread_cond_init(&chip8->keypress.cond, NULL)) {
+    perror("chip8 keypress pthread_mutex_init");
     free(chip8);
     chip8 = NULL;
     return NULL;
@@ -26,6 +47,7 @@ bool chip8_init(chip8_t* chip8, uint32_t Hz) {
   chip8->Hz = Hz;
 
   // load font.
+  memcpy(chip8->memory, DEFAULT_FONT, 16 * 5);
 
   // set program counter
   chip8->program_counter = PROGRAM_START;
@@ -73,7 +95,6 @@ void* chip8_run_thread(void* args) {
   }
 
   while (true) {
-    // fprintf(stdout, "run loop...\n");
     pthread_mutex_lock(&tick);
     pthread_cond_wait(&tock, &tick);
     chip8_emulate_cycle(chip8);
@@ -93,23 +114,26 @@ void* engine_clock_thread(void* args) {
 }
 
 bool chip8_emulate_cycle(chip8_t* chip8) {
-  // fetch opcode
-  opcode_t opcode = get_opcode(chip8);
-
-  // decode opcode
+  opcode_t opcode = fetch_opcode(chip8);
   opcode_f opcode_function = decode_opcode(opcode);
-  // execute opcode
   int instructions_to_advance = opcode_function(chip8, opcode);
   chip8->program_counter += instructions_to_advance * sizeof(opcode_t);
 
-  // update the timers
-  if (chip8->sound_timer > 0) {
-    // TODO: make sound
-    chip8->sound_timer -= 1;
-  }
-  if (chip8->delay_timer > 0) {
-    chip8->delay_timer -= 1;
-  }
-
   return true;
+}
+
+void* decrement_timer_thread(void* args) {
+  struct timer_thread_args* targs = (struct timer_thread_args*)args;
+  _timer_t* timer = targs->timer;
+  uint32_t Hz = targs->Hz;
+
+  uint32_t usleep_time = 1000000 / Hz;
+
+  while (timer->value > 0) {
+    pthread_mutex_lock(&timer->mut);
+    timer->value -= 1;
+    pthread_mutex_unlock(&timer->mut);
+    usleep(usleep_time);
+  }
+  return NULL;
 }
